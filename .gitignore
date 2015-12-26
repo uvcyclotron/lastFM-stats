@@ -1,6 +1,7 @@
 #Project specific ignores
 authdata.json
 *.json
+.idea/*
 
 # Object files
 *.o
