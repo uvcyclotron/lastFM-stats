@@ -7,19 +7,22 @@ import json
 import webbrowser
 import time
 import sys
+import datetime, time
+
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
 # Desktop Authorization
 # http://www.last.fm/api/desktopauth#6
 
-API_KEY = "7b870ce78aeba2a1b40449e1b5bddf98"
-API_SECRET = "4578360352884baec863838a0ad2c667"
-REST_URL = "http://ws.audioscrobbler.com/2.0/"
-JSON_REQ = "&format=json"
+API_KEY = ""
+API_SECRET = ""
 API_TOKEN = ""
 API_SESSION = ""
+REST_URL = "http://ws.audioscrobbler.com/2.0/"
+JSON_REQ = "&format=json"
 AUTH_FILENAME = 'authdata.json'
+KEY_FILENAME = 'keydata.json'
 
 
 # Step 2 : fetch request token
@@ -74,35 +77,69 @@ def load_data_from_disk():
     API_TOKEN = data['token']
 
 
+def load_keys_from_disk():
+    global API_KEY, API_SECRET
+    keyfile = open(KEY_FILENAME, "r")
+    data = json.load(keyfile)
+    API_KEY = data['key']
+    API_SECRET = data['secret']
+
+
 # fetch new authorization token and session key, and save to disk
 def get_new_auth():
+    load_keys_from_disk()
     update_api_token()
     request_tokenauth_from_user()
     update_api_session()
     save_data_to_disk()
 
 
+def get_ust_time(year, month, day):
+    return int(time.mktime(datetime.datetime(year=year, month=month, day=day).timetuple()))
+
+
 def get_recent_tracks():
-    user = "uvcyclotron"
-    url = REST_URL+"?method=user.getRecentTracks&api_key="+API_KEY+"&user="+user+JSON_REQ
+    load_keys_from_disk()
+    query_user = "uvcyclotron"
+    query_numtracks = 200
+    params = "&user=" + query_user + "&limit=" + query_numtracks.__str__()
+    time_range = "&from="+get_ust_time(2015, 11, 21).__str__()+"&to="+get_ust_time(2015, 12, 1).__str__()
+    url = REST_URL+"?method=user.getRecentTracks&api_key="+API_KEY+params+JSON_REQ
     webbrowser.open(url, new=2)
     response = urllib2.urlopen(url).read()
-    json.dump(response, open('recent_tracks_dump.json', 'w'))
     json_data = json.loads(response)
-    tfile = open('recent_tracks.txt', 'w')
-    track_list = json_data['recenttracks']['track']
-    for item in track_list:
-        text = "Artist: "+item['artist']['#text']
-        text += '\n'+"Track: "+item['name']
-        text += '\n'+"Album: "+item['album']['#text']
-        if 'date' in item:
-            text += '\n'+"Date: "+item['date']['#text']
-        else:
-            text += '\n'+"Now Playing !"
-        text += '\n\n'
-        tfile.write(text)
+    text_file = open('recent_tracks.txt', 'w')
+    dump_file = open('recent_tracks_dump.json', 'w')
+    # json.dump(response, open('recent_tracks_dump.json', 'w'))
 
-load_data_from_disk()
+    track_attr = json_data['recenttracks']['@attr']
+    total_pages = track_attr['totalPages']
+    print total_pages
+    json_full_list = []
+    for i in range(1, int(total_pages)):
+        url_page = url+"&page="+i.__str__()
+        response = urllib2.urlopen(url_page).read()
+        json_data = json.loads(response)
+        track_list = json_data['recenttracks']['track']
+        for item in track_list:
+            json_full_list.append(item)
+            text = "Artist: "+item['artist']['#text']
+            text += '\n'+"Track: "+item['name']
+            text += '\n'+"Album: "+item['album']['#text']
+            if 'date' in item:
+                text += '\n'+"Date: "+item['date']['#text']
+            else:
+                text += '\n'+"Now Playing !"
+            text += '\n\n'
+            text_file.write(text)
+    # write complete json dump to file
+    json.dump(json_full_list, dump_file)
+
+
 get_recent_tracks()
+
+
+
+
 
 
